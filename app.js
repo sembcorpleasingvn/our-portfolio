@@ -770,6 +770,8 @@ function buildSelect() {
 }
 function prefill(name) { const s = $('#projectSelect'); s.value = name; }
 function showErr(msg) { const e = $('#formErr'); e.textContent = msg; e.classList.toggle('show', !!msg); }
+// Web3Forms access key (lấy miễn phí tại https://web3forms.com) – enquiry sẽ gửi về email đăng ký key này
+const WEB3FORMS_KEY = '68b65868-2c50-404d-a10c-27bb79ea47a8';
 function setupForm() {
   const form = $('#enquiryForm');
   form.addEventListener('submit', async e => {
@@ -784,11 +786,22 @@ function setupForm() {
     $('#formLang').value = lang;
     const btn = $('#submitBtn'); btn.disabled = true; btn.textContent = t('sending');
     try {
-      const res = await fetch('/', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams(new FormData(form)).toString() });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = Object.fromEntries(new FormData(form));
+      if (data['bot-field']) return; // spam bot
+      delete data['bot-field']; delete data['form-name'];
       const project = $('#projectSelect').selectedOptions[0] ? $('#projectSelect').selectedOptions[0].textContent : '';
+      const payload = Object.assign({
+        access_key: WEB3FORMS_KEY,
+        subject: 'New Leasing Enquiry – ' + project + ' – ' + (data.company || ''),
+        from_name: 'Sembcorp Leasing Website',
+        replyto: data.email || ''
+      }, data);
+      const res = await fetch('https://api.web3forms.com/submit', { method:'POST', headers:{'Content-Type':'application/json', 'Accept':'application/json'}, body: JSON.stringify(payload) });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok || out.success === false) throw new Error(out.message || ('HTTP ' + res.status));
+      const projectName = $('#projectSelect').selectedOptions[0] ? $('#projectSelect').selectedOptions[0].textContent : '';
       form.style.display = 'none';
-      $('#successMsg').textContent = t('success_msg') + project;
+      $('#successMsg').textContent = t('success_msg') + projectName;
       $('#formSuccess').classList.add('show');
     } catch (err) {
       showErr(t('err_send'));
